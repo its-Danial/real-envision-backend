@@ -3,16 +3,17 @@ from PIL import Image
 from typing import Optional
 
 import torch
-from diffusers import StableDiffusionImg2ImgPipeline
-from diffusers import StableDiffusionPipeline
+
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.ml.StableDiffusion import text2imgPipe, img2imgPipe
+from app.ml.dis_bg_removal import inference as create_image_mask
 # Helpers
-from . import helpers
+from app.utils import helpers
 
 # Data Models
-from .data_models import TextToImageGenerationParameters
+from app.utils.data_models import TextToImageGenerationParameters
 
 app = FastAPI()
 
@@ -23,23 +24,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"]
 )
-
-device = "mps"
-
-model_id = "runwayml/stable-diffusion-v1-5"
-
-text2imgPipe = StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=torch.float16)
-img2imgPipe = StableDiffusionImg2ImgPipeline.from_pretrained(model_id, torch_dtype=torch.float16)
-
-text2imgPipe = text2imgPipe.to(device)
-img2imgPipe = img2imgPipe.to(device)
-
-text2imgPipe.enable_attention_slicing()
-img2imgPipe.enable_attention_slicing()
-
-
-# text2imgPipe.enable_xformers_memory_efficient_attention()
-# img2imgPipe.enable_xformers_memory_efficient_attention()
 
 
 @app.get("/")
@@ -66,11 +50,6 @@ def generate_text_to_image(parameters: TextToImageGenerationParameters):
         ).images[0]
 
         generated_image.save(f'test_image{i}.png')
-
-        # buffer = BytesIO()
-        # image.save(buffer, format="PNG")
-        # imgstr = base64.b64encode(buffer.getvalue())
-        # imageArray.append(imgstr)
 
         image_string = helpers.get_image_string(generated_image)
 
@@ -100,9 +79,9 @@ async def generate_image_to_image(initial_image: UploadFile = File(...),
 
     contents = initial_image.file.read()
     init_img = Image.open(BytesIO(contents)).convert("RGB")
-    init_img = init_img.resize((768, 512))
+    # init_img = init_img.resize((768, 512))
 
-    init_img.show()
+    # init_img.show()
 
     generator = torch.Generator("cpu").manual_seed(seed)
 
@@ -125,3 +104,11 @@ async def generate_image_to_image(initial_image: UploadFile = File(...),
 
     print(image_list)
     return image_list
+
+
+@app.get("/image-inpainting")
+async def generate_image_inpainting():
+    result = create_image_mask("app/robot.png")
+    result[1].show()
+
+    return {"Running": "healthy"}
