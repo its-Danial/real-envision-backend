@@ -1,17 +1,15 @@
-import io
-from typing import List, Optional
+from io import BytesIO
+from PIL import Image
+from typing import Optional
 
+import torch
+from diffusers import StableDiffusionImg2ImgPipeline
+from diffusers import StableDiffusionPipeline
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
-import torch
-from io import BytesIO
-import base64
-from diffusers import StableDiffusionPipeline
-from diffusers import StableDiffusionImg2ImgPipeline
 
-# imports for image2image
-import requests
-from PIL import Image
+# Helpers
+from . import helpers
 
 # Data Models
 from .data_models import TextToImageGenerationParameters
@@ -50,14 +48,14 @@ def health_check():
 
 
 @app.post("/text-to-image")
-def generate_text_to_imgage(parameters: TextToImageGenerationParameters):
+def generate_text_to_image(parameters: TextToImageGenerationParameters):
     print(parameters)
 
     generator = torch.Generator("cpu").manual_seed(parameters.seed)
 
-    imageArray = []
+    image_list = []
     for i in range(parameters.num_images_per_prompt):
-        image = text2imgPipe(
+        generated_image = text2imgPipe(
             prompt=parameters.prompt,
             height=parameters.height,
             width=parameters.height,
@@ -66,27 +64,32 @@ def generate_text_to_imgage(parameters: TextToImageGenerationParameters):
             negative_prompt=parameters.negative_prompt,
             generator=generator
         ).images[0]
-        image.save(f'testimage{i}.png')
 
-        buffer = BytesIO()
-        image.save(buffer, format="PNG")
-        imgstr = base64.b64encode(buffer.getvalue())
-        imageArray.append(imgstr)
+        generated_image.save(f'test_image{i}.png')
 
-    print(imageArray)
+        # buffer = BytesIO()
+        # image.save(buffer, format="PNG")
+        # imgstr = base64.b64encode(buffer.getvalue())
+        # imageArray.append(imgstr)
 
-    return imageArray
+        image_string = helpers.get_image_string(generated_image)
+
+        image_list.append(image_string)
+
+    print(image_list)
+
+    return image_list
 
 
 @app.post("/image-to-image")
-async def generate_img_to_image(initial_image: UploadFile = File(...),
-                                prompt: str = Form(...),
-                                strength: float = Form(...),
-                                num_inference_steps: int = Form(...),
-                                guidance_scale: float = Form(...),
-                                negative_prompt: Optional[str] = Form(""),
-                                num_images_per_prompt: int = Form(...),
-                                seed: int = Form(...)):
+async def generate_image_to_image(initial_image: UploadFile = File(...),
+                                  prompt: str = Form(...),
+                                  strength: float = Form(...),
+                                  num_inference_steps: int = Form(...),
+                                  guidance_scale: float = Form(...),
+                                  negative_prompt: Optional[str] = Form(""),
+                                  num_images_per_prompt: int = Form(...),
+                                  seed: int = Form(...)):
     print({"prompt": prompt,
            "strength": strength,
            "num_inference_steps": num_inference_steps,
@@ -98,16 +101,27 @@ async def generate_img_to_image(initial_image: UploadFile = File(...),
     contents = initial_image.file.read()
     init_img = Image.open(BytesIO(contents)).convert("RGB")
     init_img = init_img.resize((768, 512))
+
     init_img.show()
 
-    generator = torch.Generator().manual_seed(1024)
+    generator = torch.Generator("cpu").manual_seed(seed)
 
-    test_prompt = "A fantasy landscape, trending on artstation"
+    image_list = []
+    for i in range(num_images_per_prompt):
+        generated_image = img2imgPipe(prompt=prompt,
+                                      image=init_img,
+                                      strength=strength,
+                                      num_inference_steps=num_inference_steps,
+                                      guidance_scale=guidance_scale,
+                                      negative_prompt=negative_prompt,
+                                      generator=generator
+                                      ).images[0]
 
-    generated_image = \
-        img2imgPipe(prompt=test_prompt, image=init_img, strength=0.75, guidance_scale=7.5, generator=generator).images[
-            0]
+        generated_image.save(f'test_image{i}.png')
 
-    generated_image.save('testimage2image.png')
+        image_string = helpers.get_image_string(generated_image)
 
-    return {"message": f"Successfully uploaded {initial_image.filename}"}
+        image_list.append(image_string)
+
+    print(image_list)
+    return image_list
