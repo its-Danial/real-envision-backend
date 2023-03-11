@@ -2,13 +2,13 @@ from io import BytesIO
 from PIL import Image
 from typing import Optional
 
-import torch
+from torch import Generator
 
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.ml.StableDiffusion import text2imgPipe, img2imgPipe
-from app.ml.dis_bg_removal import inference as create_image_mask
+from app.ml.dis_bg_removal import inference as dis_inference
 # Helpers
 from app.utils import helpers
 
@@ -35,7 +35,7 @@ def health_check():
 def generate_text_to_image(parameters: TextToImageGenerationParameters):
     print(parameters)
 
-    generator = torch.Generator("cpu").manual_seed(parameters.seed)
+    generator = Generator("cpu").manual_seed(parameters.seed)
 
     image_list = []
     for i in range(parameters.num_images_per_prompt):
@@ -77,13 +77,13 @@ async def generate_image_to_image(initial_image: UploadFile = File(...),
            "num_images_per_prompt": num_images_per_prompt,
            "seed": seed})
 
-    contents = initial_image.file.read()
-    init_img = Image.open(BytesIO(contents)).convert("RGB")
+    image_contents = initial_image.file.read()
+    init_img = Image.open(BytesIO(image_contents)).convert("RGB")
     # init_img = init_img.resize((768, 512))
 
     # init_img.show()
 
-    generator = torch.Generator("cpu").manual_seed(seed)
+    generator = Generator("cpu").manual_seed(seed)
 
     image_list = []
     for i in range(num_images_per_prompt):
@@ -106,9 +106,20 @@ async def generate_image_to_image(initial_image: UploadFile = File(...),
     return image_list
 
 
+@app.post("/create-image-mask")
+async def create_image_mask(image: UploadFile = File(...)):
+    image_contents = image.file.read()
+    image_bytes = BytesIO(image_contents)
+
+    results = dis_inference(image_bytes)
+
+    image_mask = results[1]
+
+    image_string = helpers.get_image_string(image_mask)
+    print(image_string)
+    return image_string
+
+
 @app.get("/image-inpainting")
 async def generate_image_inpainting():
-    result = create_image_mask("app/robot.png")
-    result[1].show()
-
     return {"Running": "healthy"}
