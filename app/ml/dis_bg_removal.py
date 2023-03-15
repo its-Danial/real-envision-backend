@@ -27,6 +27,7 @@ else:
 
 # Download official weights
 if not os.path.exists("app/ml/saved_models/isnet.pth"):
+    os.mkdir("app/ml/saved_models")
     MODEL_PATH_URL = "https://drive.google.com/uc?id=1nV57qKuy--d5u1yvkng9aXW1KS4sOpOi"
     gdown.download(MODEL_PATH_URL, "app/ml/saved_models/isnet.pth", use_cookies=False)
 
