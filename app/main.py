@@ -121,5 +121,44 @@ async def create_image_mask(image: UploadFile = File(...)):
 
 
 @app.get("/image-inpainting")
-async def generate_image_inpainting():
-    return {"Running": "healthy"}
+async def generate_image_inpainting(initial_image: UploadFile = File(...),
+                                    mask_image: UploadFile = File(...),
+                                    prompt: str = Form(...),
+                                    height=Form(...),
+                                    width=Form(...),
+                                    num_inference_steps: int = Form(...),
+                                    guidance_scale: float = Form(...),
+                                    negative_prompt: Optional[str] = Form(""),
+                                    num_images_per_prompt: int = Form(...),
+                                    seed: int = Form(...)):
+    init_image_contents = initial_image.file.read()
+    init_img = Image.open(BytesIO(init_image_contents)).convert("RGB")
+
+    mask_image_contents = mask_image.file.read()
+    mask_img = Image.open(BytesIO(mask_image_contents)).convert("RGB")
+
+    generator = Generator("cpu").manual_seed(seed)
+
+    image_list = []
+    for i in range(num_images_per_prompt):
+        generated_image = img2imgPipe(
+            image=init_img,
+            mask_image=mask_img,
+            prompt=prompt,
+            height=height,
+            width=width,
+            num_inference_steps=num_inference_steps,
+            guidance_scale=guidance_scale,
+            negative_prompt=negative_prompt,
+            generator=generator,
+        ).images[0]
+
+        generated_image.save(f'test_image{i}.png')
+
+        image_string = helpers.get_image_string(generated_image)
+
+        image_list.append(image_string)
+
+    print(image_list)
+
+    return image_list
