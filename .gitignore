@@ -1,5 +1,5 @@
 random_test.py
-app/ml/saved_models
+isnet.pth
 
 #Images
 *.png
