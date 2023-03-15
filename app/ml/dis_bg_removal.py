@@ -1,6 +1,8 @@
 from PIL import Image
 import numpy as np
 import torch
+import os
+import gdown
 from torch.autograd import Variable
 from torchvision import transforms
 import torch.nn.functional as F
@@ -22,6 +24,12 @@ elif torch.backends.mps.is_available():
 else:
     device = "cpu"
 
+
+# Download official weights
+if not os.path.exists("saved_models"):
+    os.mkdir("saved_models")
+    MODEL_PATH_URL = "https://drive.google.com/uc?id=1nV57qKuy--d5u1yvkng9aXW1KS4sOpOi"
+    gdown.download(MODEL_PATH_URL, "saved_models/isnet.pth", use_cookies=False)
 
 class GOSNormalize(object):
     '''
