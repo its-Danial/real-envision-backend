@@ -7,7 +7,7 @@ from torch import Generator
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.ml.StableDiffusion import text2imgPipe, img2imgPipe
+from app.ml.StableDiffusion import text2imgPipe, img2imgPipe, inpaintingPipe
 from app.ml.dis_bg_removal import inference as dis_inference
 # Helpers
 from app.utils import helpers
@@ -120,17 +120,19 @@ async def create_image_mask(image: UploadFile = File(...)):
     return image_string
 
 
-@app.get("/image-inpainting")
+@app.post("/image-inpainting")
 async def generate_image_inpainting(initial_image: UploadFile = File(...),
                                     mask_image: UploadFile = File(...),
                                     prompt: str = Form(...),
-                                    height=Form(...),
-                                    width=Form(...),
+                                    height: int = Form(...),
+                                    width: int = Form(...),
                                     num_inference_steps: int = Form(...),
                                     guidance_scale: float = Form(...),
                                     negative_prompt: Optional[str] = Form(""),
                                     num_images_per_prompt: int = Form(...),
                                     seed: int = Form(...)):
+
+    # TODO: mask_image can be a string when it is generated instead of uploaded, introduce condition what type it is.
     init_image_contents = initial_image.file.read()
     init_img = Image.open(BytesIO(init_image_contents)).convert("RGB")
 
@@ -141,7 +143,7 @@ async def generate_image_inpainting(initial_image: UploadFile = File(...),
 
     image_list = []
     for i in range(num_images_per_prompt):
-        generated_image = img2imgPipe(
+        generated_image = inpaintingPipe(
             image=init_img,
             mask_image=mask_img,
             prompt=prompt,
