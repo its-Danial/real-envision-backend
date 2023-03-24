@@ -1,13 +1,9 @@
 import torch
 from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline, StableDiffusionInpaintPipeline
 
-device = ""
-if torch.cuda.is_available():
-    device = "cuda"
-elif torch.backends.mps.is_available():
-    device = "mps"
-else:
-    device = "cpu"
+from app.utils.helpers import get_device_name
+
+device = get_device_name()
 
 main_model_id = "runwayml/stable-diffusion-v1-5"
 inpainting_model_id = "runwayml/stable-diffusion-inpainting"
