@@ -7,7 +7,7 @@ from torch import Generator
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.ml.StableDiffusion import text2imgPipe, img2imgPipe, inpaintingPipe
+from app.ml.StableDiffusion import text2imgPipe, img2imgPipe, inpaintingPipe, upscalerPipe
 from app.ml.dis_bg_removal import inference as dis_inference
 # Helpers
 from app.utils import helpers
@@ -33,8 +33,6 @@ def health_check():
 
 @app.post("/text-to-image")
 def generate_text_to_image(parameters: TextToImageGenerationParameters):
-    print(parameters)
-
     generator = Generator("cpu").manual_seed(parameters.seed)
 
     image_list = []
@@ -49,13 +47,9 @@ def generate_text_to_image(parameters: TextToImageGenerationParameters):
             generator=generator
         ).images[0]
 
-        generated_image.save(f'test_image{i}.png')
-
         image_string = helpers.get_image_string(generated_image)
 
         image_list.append(image_string)
-
-    print(image_list)
 
     return image_list
 
@@ -69,19 +63,8 @@ async def generate_image_to_image(initial_image: UploadFile = File(...),
                                   negative_prompt: Optional[str] = Form(""),
                                   num_images_per_prompt: int = Form(...),
                                   seed: int = Form(...)):
-    print({"prompt": prompt,
-           "strength": strength,
-           "num_inference_steps": num_inference_steps,
-           "guidance_scale": guidance_scale,
-           "negative_prompt": negative_prompt,
-           "num_images_per_prompt": num_images_per_prompt,
-           "seed": seed})
-
     image_contents = initial_image.file.read()
     init_img = Image.open(BytesIO(image_contents)).convert("RGB")
-    # init_img = init_img.resize((768, 512))
-
-    # init_img.show()
 
     generator = Generator("cpu").manual_seed(seed)
 
@@ -96,13 +79,10 @@ async def generate_image_to_image(initial_image: UploadFile = File(...),
                                       generator=generator
                                       ).images[0]
 
-        generated_image.save(f'test_image{i}.png')
-
         image_string = helpers.get_image_string(generated_image)
 
         image_list.append(image_string)
 
-    print(image_list)
     return image_list
 
 
@@ -131,7 +111,6 @@ async def generate_image_inpainting(initial_image: UploadFile = File(...),
                                     negative_prompt: Optional[str] = Form(""),
                                     num_images_per_prompt: int = Form(...),
                                     seed: int = Form(...)):
-
     # TODO: mask_image can be a string when it is generated instead of uploaded, introduce condition what type it is.
     init_image_contents = initial_image.file.read()
     init_img = Image.open(BytesIO(init_image_contents)).convert("RGB")
@@ -155,12 +134,42 @@ async def generate_image_inpainting(initial_image: UploadFile = File(...),
             generator=generator,
         ).images[0]
 
-        generated_image.save(f'test_image{i}.png')
-
         image_string = helpers.get_image_string(generated_image)
 
         image_list.append(image_string)
 
     print(image_list)
+
+    return image_list
+
+
+@app.post("/super-resolution")
+async def generate_super_resolution(initial_image: UploadFile = File(...),
+                                    prompt: str = Form(...),
+                                    num_inference_steps: int = Form(...),
+                                    guidance_scale: float = Form(...),
+                                    negative_prompt: Optional[str] = Form(""),
+                                    num_images_per_prompt: int = Form(...),
+                                    seed: int = Form(...)):
+    image_contents = initial_image.file.read()
+    low_res_img = Image.open(BytesIO(image_contents)).convert("RGB")
+
+    generator = Generator("cpu").manual_seed(seed)
+
+    image_list = []
+    for i in range(num_images_per_prompt):
+        generated_image = upscalerPipe(prompt=prompt,
+                                       image=low_res_img,
+                                       num_inference_steps=num_inference_steps,
+                                       guidance_scale=guidance_scale,
+                                       negative_prompt=negative_prompt,
+                                       generator=generator
+                                       ).images[0]
+
+        generated_image.save(f'test_upscaled_image_image{i}.png')
+
+        image_string = helpers.get_image_string(generated_image)
+
+        image_list.append(image_string)
 
     return image_list
